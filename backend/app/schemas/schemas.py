@@ -14,7 +14,14 @@ class OvenOut(BaseModel):
     id: int
     label: str
     capacity_note: str
+    rack_slots: int | None = None
+    chamber_trays: int | None = None
     model_config = {"from_attributes": True}
+
+
+class OvenUpdate(BaseModel):
+    rack_slots: int | None = Field(default=None, ge=1)
+    chamber_trays: int | None = Field(default=None, ge=1)
 
 
 class BatchOut(BaseModel):
@@ -46,6 +53,16 @@ class GanttBlock(BaseModel):
     phase: str
     start_min: int
     end_min: int
+
+
+class UsageSegmentOut(BaseModel):
+    oven_id: int
+    start_min: int
+    end_min: int
+    rack_count: int
+    chamber_count: int
+    rack_slots: int | None = None
+    chamber_trays: int | None = None
 
 
 class ConflictOut(BaseModel):

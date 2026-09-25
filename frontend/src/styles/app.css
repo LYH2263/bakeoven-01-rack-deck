@@ -255,6 +255,38 @@ select, input, .gantt-deck button, .toolbar button {
   gap: .65rem;
   align-items: center;
 }
+.gantt-cap {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .62rem;
+  color: var(--bake-muted);
+  margin-top: 2px;
+}
+.gantt-lane { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.usage-strip {
+  position: relative;
+  height: 16px;
+}
+.usage-chip {
+  position: absolute;
+  top: 0;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  color: #8a7a6a;
+  white-space: nowrap;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.usage-chip span { opacity: .35; }
+.usage-chip span.on { opacity: 1; color: var(--bake-copper); }
+.usage-chip.hot span.on { color: #ffe0a0; }
+.usage-chip.over span.on { color: #ff8a6a; font-weight: 700; }
+.usage-chip.hot { background: rgba(242, 184, 128, .12); }
+.usage-chip.over { background: rgba(255, 90, 60, .22); }
 .gantt-track {
   position: relative;
   height: 40px;

@@ -13,7 +13,7 @@ def seed_if_empty(db: Session) -> None:
         Product(name="布朗尼", ferment_min=0, bake_min=30),
     ]
     ovens = [
-        Oven(label="一层 1 号炉", capacity_note="盘炉"),
+        Oven(label="一层 1 号炉", capacity_note="醒发架2格/炉膛1盘", rack_slots=2, chamber_trays=1),
         Oven(label="一层 2 号炉", capacity_note="盘炉"),
         Oven(label="二层石板炉", capacity_note="石板"),
     ]
