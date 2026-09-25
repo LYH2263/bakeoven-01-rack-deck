@@ -10,13 +10,16 @@ from app.schemas.schemas import (
     ConflictOut,
     GanttBlock,
     OvenOut,
+    OvenUpdate,
     ProductOut,
     WindowOut,
 )
 from app.services.oven_engine import (
     Occupancy,
+    OvenCapacity,
     RecipeDurations,
     build_occupancies,
+    check_capacity,
     find_conflicts,
     next_free_window,
 )
@@ -26,6 +29,19 @@ api_router = APIRouter()
 
 def _recipe(p: Product) -> RecipeDurations:
     return RecipeDurations(p.ferment_min, p.bake_min)
+
+
+def _capacity(o: Oven) -> OvenCapacity:
+    return OvenCapacity(rack_slots=o.rack_slots, hearth_slots=o.hearth_slots)
+
+
+def _fmt_min(m: int) -> str:
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def _rival_label(db: Session, batch_id: int) -> str:
+    b = db.get(Batch, batch_id)
+    return f"{b.code}(#{batch_id})" if b else f"批次#{batch_id}"
 
 
 def _all_occupancies(db: Session) -> list[Occupancy]:
@@ -73,6 +89,21 @@ def ovens(db: Session = Depends(get_db)):
     return db.scalars(select(Oven).order_by(Oven.id)).all()
 
 
+@api_router.patch("/ovens/{oven_id}", response_model=OvenOut)
+def update_oven(oven_id: int, body: OvenUpdate, db: Session = Depends(get_db)):
+    oven = db.get(Oven, oven_id)
+    if not oven:
+        raise HTTPException(404, "炉位不存在")
+    data = body.model_dump(exclude_unset=True)
+    if "rack_slots" in data:
+        oven.rack_slots = data["rack_slots"]
+    if "hearth_slots" in data:
+        oven.hearth_slots = data["hearth_slots"]
+    db.commit()
+    db.refresh(oven)
+    return oven
+
+
 @api_router.get("/batches", response_model=list[BatchOut])
 def batches(db: Session = Depends(get_db)):
     rows = db.scalars(select(Batch).order_by(Batch.start_min)).all()
@@ -88,15 +119,38 @@ def create_batch(body: BatchCreate, db: Session = Depends(get_db)):
     recipe = _recipe(product)
     candidates = build_occupancies(oven.id, -1, body.start_min, recipe)
     existing = _all_occupancies(db)
-    hits = find_conflicts(existing, candidates)
     code = body.code or f"BO-{body.start_min}"
-    if hits:
-        ex, cand = hits[0]
-        detail = (
-            f"与批次#{ex.batch_id} 的 {ex.phase} 段重叠："
-            f"[{cand.interval.start},{cand.interval.end})"
-        )
-        db.add(ConflictLog(batch_code=code, oven_id=oven.id, detail=detail))
+    capacity = _capacity(oven)
+
+    detail: str | None = None
+    if capacity.rack_slots is None and capacity.hearth_slots is None:
+        # 两项上限都留空：只按时间重叠拒绝（发酵/烘烤任一段重叠即冲突）
+        hits = find_conflicts(existing, candidates)
+        if hits:
+            ex, cand = hits[0]
+            phase_name = "发酵段" if ex.phase == "ferment" else "烘烤段"
+            detail = (
+                f"时间重叠：与{_rival_label(db, ex.batch_id)} 的{phase_name}在 "
+                f"[{_fmt_min(cand.interval.start)},{_fmt_min(cand.interval.end)}) 重叠"
+            )
+    else:
+        violation = check_capacity(existing, candidates, capacity)
+        if violation is not None:
+            window = f"[{_fmt_min(violation.start)},{_fmt_min(violation.end)})"
+            rivals = "、".join(_rival_label(db, rid) for rid in violation.rivals) or "（无）"
+            if violation.resource == "rack":
+                detail = (
+                    f"醒发架已满：架格 {violation.limit}，{window} 需同时放 {violation.peak}；"
+                    f"对手批次 {rivals}"
+                )
+            else:
+                detail = (
+                    f"炉膛已满：膛盘 {violation.limit}，{window} 需同时烤 {violation.peak}；"
+                    f"对手批次 {rivals}"
+                )
+
+    if detail is not None:
+        db.add(ConflictLog(batch_code=code, oven_id=oven.id, detail=detail[:240]))
         db.commit()
         raise HTTPException(409, detail)
     batch = Batch(

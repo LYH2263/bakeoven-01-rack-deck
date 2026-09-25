@@ -286,6 +286,40 @@ select, input, .gantt-deck button, .toolbar button {
   border: 1px solid #f0a060;
   box-shadow: 0 0 8px rgba(217, 121, 65, .35);
 }
+
+/* 醒发架 / 炉膛 分开计容的重叠占用标注 */
+.gantt-cap { font-size: .62rem; color: var(--bake-muted); font-family: "IBM Plex Mono", monospace; margin-top: 2px; }
+.gantt-occ-layer {
+  position: absolute; inset: 0; pointer-events: none; z-index: 3;
+}
+.gantt-occ {
+  position: absolute;
+  height: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; line-height: 1; font-weight: 800;
+  font-family: "IBM Plex Mono", monospace;
+  border-radius: 2px;
+  color: #fff4e8;
+  white-space: nowrap; overflow: visible;
+  pointer-events: auto;
+  z-index: 4;
+}
+.gantt-occ.rack {
+  top: 1px;
+  background: rgba(122, 92, 62, .92);
+  border: 1px solid #c8a878;
+}
+.gantt-occ.hearth {
+  bottom: 1px;
+  background: rgba(217, 121, 65, .92);
+  border: 1px solid #ffb070;
+}
+.gantt-occ.over {
+  background: #b3261c;
+  border-color: #ff7a5a;
+  box-shadow: 0 0 8px rgba(255, 90, 50, .9);
+  color: #fff;
+}
 .axis {
   display: grid;
   grid-template-columns: 120px 1fr;

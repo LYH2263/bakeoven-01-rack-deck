@@ -57,6 +57,91 @@ def find_conflicts(existing: list[Occupancy], candidates: list[Occupancy]) -> li
     return hits
 
 
+# 发酵段只占醒发架，烘烤段只占炉膛
+@dataclass(frozen=True)
+class OvenCapacity:
+    rack_slots: int | None  # 醒发架格数；None=不按架计容
+    hearth_slots: int | None  # 炉膛盘数；None=不按膛计容
+
+
+@dataclass(frozen=True)
+class CapacityViolation:
+    resource: str  # rack(架满) | hearth(膛满)
+    limit: int
+    peak: int
+    start: int
+    end: int
+    rivals: tuple[int, ...]  # 同时占用该资源的对手批次 id
+
+
+def _sweep_violation(
+    existing: list[tuple[int, int, int]],
+    candidates: list[tuple[int, int, int]],
+    limit: int,
+    resource: str,
+) -> CapacityViolation | None:
+    """半开区间扫描：仅在候选段在场的区段统计占用，返回最严重的一次超限。"""
+    events: list[tuple[int, int, int, int]] = []  # 时刻, 增量(-1先/+1后), 批次id, 是否候选
+    for s, e, b in existing:
+        if e > s:
+            events.append((s, 1, b, 0))
+            events.append((e, -1, b, 0))
+    for s, e, b in candidates:
+        if e > s:
+            events.append((s, 1, b, 1))
+            events.append((e, -1, b, 1))
+    events.sort(key=lambda x: (x[0], x[1]))  # 同一时刻先收尾后开场，端点相接不重叠
+
+    active_existing: set[int] = set()
+    cand_count = 0
+    prev: int | None = None
+    worst: CapacityViolation | None = None
+    for t, delta, bid, is_cand in events:
+        if prev is not None and t > prev and cand_count > 0:
+            total = len(active_existing) + cand_count
+            if total > limit and (worst is None or total > worst.peak):
+                worst = CapacityViolation(
+                    resource=resource,
+                    limit=limit,
+                    peak=total,
+                    start=prev,
+                    end=t,
+                    rivals=tuple(sorted(active_existing)),
+                )
+        if is_cand:
+            cand_count += delta
+        elif delta == 1:
+            active_existing.add(bid)
+        else:
+            active_existing.discard(bid)
+        prev = t
+    return worst
+
+
+def check_capacity(
+    existing: list[Occupancy],
+    candidates: list[Occupancy],
+    capacity: OvenCapacity,
+) -> CapacityViolation | None:
+    """发酵只核架格、烘烤只核膛盘；两项留空的资源不限制（退回纯时间重叠）。"""
+    if not candidates:
+        return None
+    oven_id = candidates[0].oven_id
+    on_oven = [o for o in existing if o.oven_id == oven_id]
+    for phase, resource, limit in (
+        ("ferment", "rack", capacity.rack_slots),
+        ("bake", "hearth", capacity.hearth_slots),
+    ):
+        if limit is None:
+            continue
+        ex = [(o.interval.start, o.interval.end, o.batch_id) for o in on_oven if o.phase == phase]
+        cand = [(o.interval.start, o.interval.end, o.batch_id) for o in candidates if o.phase == phase]
+        violation = _sweep_violation(ex, cand, limit, resource)
+        if violation is not None:
+            return violation
+    return None
+
+
 def next_free_window(
     existing: list[Occupancy],
     oven_id: int,

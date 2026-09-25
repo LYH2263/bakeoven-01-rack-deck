@@ -19,6 +19,9 @@ class Oven(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     label: Mapped[str] = mapped_column(String(40), unique=True)
     capacity_note: Mapped[str] = mapped_column(String(80), default="")
+    # 醒发架格数 / 炉膛盘数；留空(None)表示该资源不按容量计容
+    rack_slots: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hearth_slots: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class Batch(Base):

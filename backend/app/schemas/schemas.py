@@ -14,7 +14,14 @@ class OvenOut(BaseModel):
     id: int
     label: str
     capacity_note: str
+    rack_slots: int | None = None
+    hearth_slots: int | None = None
     model_config = {"from_attributes": True}
+
+
+class OvenUpdate(BaseModel):
+    rack_slots: int | None = Field(default=None, ge=1)
+    hearth_slots: int | None = Field(default=None, ge=1)
 
 
 class BatchOut(BaseModel):
